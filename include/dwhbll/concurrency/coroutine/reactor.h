@@ -8,6 +8,7 @@
 #include <dwhbll/collections/ring.h>
 #include <dwhbll/collections/sorted_linked_list.h>
 #include <dwhbll/concurrency/coroutine/task.h>
+#include <dwhbll/concurrency/coroutine/detached_task.h>
 
 #include <liburing.h>
 
@@ -109,7 +110,30 @@ namespace dwhbll::concurrency::coroutine {
 
         void spawn(task<> future);
 
-        [[nodiscard]] std::future<void> spawn_with_future(task<> future);
+        template <typename T>
+        [[nodiscard]] std::future<T> spawn_with_future(task<T> task) {
+            std::promise<void> promise;
+            auto fut = promise.get_future();
+            auto f = [task=std::move(task), promise=std::move(promise)]() mutable -> DetachedTask {
+                try {
+                    if constexpr(std::is_same_v<T, void>) {
+                        co_await task;
+                        promise.set_value();
+                    } else
+                        promise.set_value(co_await task);
+                } catch (...) {
+                    promise.set_exception(std::current_exception());
+                }
+            };
+
+            auto* job = job_lifetime_begin();
+            struct job* previous_job = job;
+            std::swap(current_job, previous_job);
+            f();
+            std::swap(current_job, previous_job);
+
+            return fut;
+        }
 
         static reactor* get_thread_reactor();
 

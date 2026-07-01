@@ -217,26 +217,6 @@ namespace dwhbll::concurrency::coroutine {
         f();
     }
 
-    std::future<void> reactor::spawn_with_future(task<> future) {
-        std::promise<void> promise;
-        auto fut = promise.get_future();
-        auto f = [fut = std::move(future), promise=std::move(promise)]() mutable -> DetachedTask {
-            try {
-                co_await fut;
-                promise.set_value();
-            } catch (...) {
-                auto eptr = std::current_exception();
-                promise.set_exception(eptr);
-            }
-        };
-
-        auto* job = job_lifetime_begin();
-        auto _ = stl_ext::store_temporary(current_job, job);
-        f();
-
-        return fut;
-    }
-
     reactor * reactor::get_thread_reactor() {
         if (!detail::live_reactor)
             throw exceptions::rt_exception_base("There is no currently running reactor on this thread!");
