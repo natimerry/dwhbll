@@ -96,11 +96,7 @@ namespace dwhbll::concurrency::coroutine {
 
         void job_lifetime_end(job *job);
 
-        struct cancellation_token {
-            std::uint64_t ref_count = 0;
-        };
-
-        std::unordered_set<cancellation_token*> cancellations_in_flight;
+        struct cancellation_token {};
 
         [[nodiscard]] task<> cancel_job(cancellation_token* token, job *job);
 

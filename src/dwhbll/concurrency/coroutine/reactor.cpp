@@ -164,7 +164,10 @@ namespace dwhbll::concurrency::coroutine {
 
         [job=job_, reactor=current_reactor]() mutable -> DetachedTask {
             auto* token = new cancellation_token;
+
             co_await reactor->cancel_job(token, job);
+
+            delete token;
         }();
     }
 
@@ -307,17 +310,6 @@ namespace dwhbll::concurrency::coroutine {
         inflight_completions--;
 
         auto* data = io_uring_cqe_get_data(cqe);
-
-        if (cancellations_in_flight.contains(static_cast<cancellation_token *>(data))) {
-            auto* cancellation = static_cast<cancellation_token *>(data);
-
-            if (--cancellation->ref_count == 0) {
-                cancellations_in_flight.erase(cancellation);
-                delete cancellation;
-            }
-
-            return;
-        }
 
         auto* job_info = static_cast<user_data *>(data);
 
