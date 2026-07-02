@@ -60,6 +60,14 @@ namespace dwhbll::async::net {
         if (sock < 0)
             return Err(errno);
 
+        if (want_reuseaddr) {
+            int one = 1;
+            auto r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+
+            if (r != 0)
+                return Err(errno);
+        }
+
         if (bind(sock, reinterpret_cast<sockaddr*>(&addr), addrlen) < 0)
             return Err(errno);
 
@@ -102,15 +110,7 @@ namespace dwhbll::async::net {
         }()));
     }
 
-    Result<UNIT, int> tcp_listener::set_reuseaddr() const noexcept {
-        if (!has_socket())
-            debug::panic();
-
-        int one = 1;
-        auto r = setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-
-        if (r == 0)
-            return Ok();
-        return Err(errno);
+    void tcp_listener::set_reuseaddr() noexcept {
+        want_reuseaddr = true;
     }
 }

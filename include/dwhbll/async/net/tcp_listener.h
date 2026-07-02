@@ -16,6 +16,7 @@ namespace dwhbll::async::net {
         int fd_{-1};
 
         bool shutdown {false};
+        bool want_reuseaddr {false};
 
     public:
         tcp_listener();
@@ -37,6 +38,6 @@ namespace dwhbll::async::net {
 
         [[nodiscard]] concurrency::coroutine::task<stl_ext::Result<socket, int>> accept() const noexcept;
 
-        stl_ext::Result<stl_ext::UNIT, int> set_reuseaddr() const noexcept;
+        void set_reuseaddr() noexcept;
     };
 }
