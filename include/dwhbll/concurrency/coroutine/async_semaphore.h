@@ -2,11 +2,16 @@
 
 #include <coroutine>
 #include <dwhbll/collections/ring.h>
+#include <dwhbll/concurrency/coroutine/cancellable_base.h>
 
 namespace dwhbll::concurrency::coroutine {
     class async_semaphore {
+    public:
+        class semaphore_awaitable;
+
+    private:
         std::int32_t permits_;
-        collections::Ring<std::coroutine_handle<>> waiting;
+        collections::Ring<std::pair<semaphore_awaitable*, std::coroutine_handle<>>> waiting;
 
     public:
         explicit async_semaphore(std::int32_t initial);
@@ -14,20 +19,31 @@ namespace dwhbll::concurrency::coroutine {
         async_semaphore(const async_semaphore&) = delete;
         async_semaphore& operator=(const async_semaphore&) = delete;
 
-        struct semaphore_awaitable {
+        class semaphore_awaitable : public cancellable_base {
             async_semaphore* semaphore;
 
-            bool await_ready() const noexcept;
+            friend class async_semaphore;
 
-            void await_suspend(std::coroutine_handle<> h) const;
+            semaphore_awaitable(async_semaphore *semaphore);
 
-            void await_resume() const noexcept;
+        public:
+            [[nodiscard]] bool await_ready() const noexcept;
+
+            void await_suspend(std::coroutine_handle<> h);
+
+            void await_resume() const;
         };
 
-        struct deferrable_awaitable {
+        class deferrable_awaitable {
             semaphore_awaitable awaitable;
             async_semaphore* semaphore;
 
+            friend class async_semaphore;
+
+            deferrable_awaitable(const semaphore_awaitable &awaitable,
+                async_semaphore *semaphore);
+
+        public:
             semaphore_awaitable& operator co_await();
 
             ~deferrable_awaitable();

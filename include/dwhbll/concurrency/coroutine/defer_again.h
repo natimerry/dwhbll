@@ -1,12 +1,14 @@
 #pragma once
 
 #include <coroutine>
+#include <dwhbll/concurrency/coroutine/cancellable_base.h>
 
 namespace dwhbll::concurrency::coroutine {
-    struct defer_again_t {
+    class defer_again_t : public cancellable_base {
+    public:
         bool await_ready() const noexcept;
 
-        void await_suspend(std::coroutine_handle<> h) const noexcept;
+        void await_suspend(std::coroutine_handle<> h) noexcept;
 
         void await_resume() const noexcept;
     };

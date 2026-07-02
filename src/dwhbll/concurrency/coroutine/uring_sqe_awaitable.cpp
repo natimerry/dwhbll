@@ -8,12 +8,14 @@ namespace dwhbll::concurrency::coroutine {
 
     void uring_sqe_awaitable::await_suspend(std::coroutine_handle<> h) noexcept {
         // Defer until reactor frees SQ space
-        reactor::get_thread_reactor()->enqueue_sqe_waiter(h);
+        reactor::get_thread_reactor()->enqueue_sqe_waiter(this, h);
     }
 
-    void uring_sqe_awaitable::await_resume() noexcept {}
+    void uring_sqe_awaitable::await_resume() noexcept {
+        cancellable_base::await_resume();
+    }
 
     uring_sqe_awaitable wait_for_sqe() noexcept {
-        return uring_sqe_awaitable();
+        return {};
     }
 }

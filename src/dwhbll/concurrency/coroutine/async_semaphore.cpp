@@ -5,20 +5,30 @@
 namespace dwhbll::concurrency::coroutine {
     async_semaphore::async_semaphore(std::int32_t initial): permits_(initial) {}
 
+    async_semaphore::semaphore_awaitable::semaphore_awaitable(
+        async_semaphore *semaphore): semaphore(semaphore) {
+    }
+
     bool async_semaphore::semaphore_awaitable::await_ready() const noexcept {
         return semaphore->permits_ > 0;
     }
 
-    void async_semaphore::semaphore_awaitable::await_suspend(std::coroutine_handle<> h) const {
+    void async_semaphore::semaphore_awaitable::await_suspend(std::coroutine_handle<> h) {
         if (semaphore->permits_ > 0) {
             semaphore->permits_--;
-            reactor::get_thread_reactor()->enqueue(h);
+            reactor::get_thread_reactor()->enqueue(this, h);
         }
 
-        semaphore->waiting.push_back(h);
+        semaphore->waiting.push_back({this, h});
     }
 
-    void async_semaphore::semaphore_awaitable::await_resume() const noexcept {
+    void async_semaphore::semaphore_awaitable::await_resume() const {
+        cancellable_base::await_resume();
+    }
+
+    async_semaphore::deferrable_awaitable::deferrable_awaitable(
+        const semaphore_awaitable &awaitable, async_semaphore *semaphore): awaitable(awaitable),
+        semaphore(semaphore) {
     }
 
     async_semaphore::semaphore_awaitable& async_semaphore::deferrable_awaitable::operator co_await() {
@@ -40,7 +50,8 @@ namespace dwhbll::concurrency::coroutine {
     void async_semaphore::release() {
         permits_++;
         if (!waiting.empty()) {
-            reactor::get_thread_reactor()->enqueue(waiting.front());
+            auto front = waiting.front();
+            reactor::get_thread_reactor()->enqueue(front.first, front.second);
             waiting.pop_front();
         }
     }

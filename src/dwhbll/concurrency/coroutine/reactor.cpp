@@ -1,20 +1,23 @@
 #include <dwhbll/concurrency/coroutine/reactor.h>
 
-#include <dwhbll/exceptions/rt_exception_base.h>
 #include <thread>
 #include <liburing.h>
+
+#include <dwhbll/concurrency/coroutine/cancellable_base.h>
 #include <dwhbll/concurrency/coroutine/detached_task.h>
 #include <dwhbll/concurrency/coroutine/uring_promise.h>
+#include <dwhbll/concurrency/coroutine/uring_sqe_awaitable.h>
 #include <dwhbll/console/debug.hpp>
 #include <dwhbll/console/Logging.h>
+#include <dwhbll/exceptions/rt_exception_base.h>
 #include <dwhbll/stl_ext/utilities.h>
 
 namespace dwhbll::concurrency::coroutine {
     namespace detail {
         thread_local reactor* live_reactor;
 
-        void reactor_enqueue(std::coroutine_handle<> h) {
-            reactor::get_thread_reactor()->enqueue(h);
+        void reactor_enqueue(cancellable_base* cancellable, std::coroutine_handle<> h) {
+            reactor::get_thread_reactor()->enqueue(cancellable, h);
         }
     }
 
@@ -35,6 +38,16 @@ namespace dwhbll::concurrency::coroutine {
             ready_queue.push_back(b->data);
 
         time_tasks.erase(time_tasks.begin(), now);
+
+        // handle cancellations;
+        for (auto b = time_tasks.begin(); b != time_tasks.end();) {
+            if (b->data->parent->cancelled) {
+                b->data->promise->cancel();
+                ready_queue.push_back(b->data);
+                b = time_tasks.erase(b);
+            } else
+                ++b;
+        }
     }
 
     std::optional<std::chrono::steady_clock::time_point> reactor::get_first_time_expire() {
@@ -137,15 +150,21 @@ namespace dwhbll::concurrency::coroutine {
         return ready_queue.empty() && time_tasks.empty() && sqe_waiters.empty() && inflight_completions == 0;
     }
 
-    void reactor::enqueue(std::coroutine_handle<> handle) {
+    void reactor::enqueue(cancellable_base* cancellable, std::coroutine_handle<> handle) {
         auto* data = user_data_lifetime_begin();
         data->handle = handle;
+        data->promise = cancellable;
+        if (current_job->cancelled)
+            cancellable->cancel();
         ready_queue.push_back(data);
     }
 
-    void reactor::add_sleep_task(std::chrono::steady_clock::time_point resume, std::coroutine_handle<> h) {
+    void reactor::add_sleep_task(std::chrono::steady_clock::time_point resume, cancellable_base* cancellable, std::coroutine_handle<> h) {
         auto* data = user_data_lifetime_begin();
         data->handle = h;
+        data->promise = cancellable;
+        if (current_job->cancelled)
+            cancellable->cancel();
 
         if (resume < std::chrono::steady_clock::now())
             ready_queue.push_back(data);
@@ -248,7 +267,7 @@ namespace dwhbll::concurrency::coroutine {
 
         auto* job_info = static_cast<user_data *>(io_uring_cqe_get_data(cqe));
 
-        auto* promise = static_cast<uring_promise*>(job_info->promise);
+        auto* promise = static_cast<uring_promise *>(job_info->promise);
 
         promise->cqe = cqe;
 
@@ -257,10 +276,16 @@ namespace dwhbll::concurrency::coroutine {
         io_uring_cqe_seen(&ring, cqe);
     }
 
-    void reactor::enqueue_sqe_waiter(std::coroutine_handle<> handle) {
+    void reactor::enqueue_sqe_waiter(uring_sqe_awaitable *awaitable, std::coroutine_handle<> handle) {
         auto* data = user_data_lifetime_begin();
+        data->promise = awaitable;
         data->handle = handle;
-        sqe_waiters.push_back(data);
+
+        if (current_job->cancelled) {
+            awaitable->cancel();
+            ready_queue.push_back(data);
+        } else
+            sqe_waiters.push_back(data);
     }
 
     io_uring * reactor::get_uring_ptr() {

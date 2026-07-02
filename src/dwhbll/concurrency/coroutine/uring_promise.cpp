@@ -9,7 +9,9 @@ namespace dwhbll::concurrency::coroutine {
         waiter = h;
     }
 
-    io_uring_cqe * uring_promise::await_resume() noexcept {
+    io_uring_cqe * uring_promise::await_resume() const {
+        cancellable_base::await_resume();
+
         return cqe;
     }
 }

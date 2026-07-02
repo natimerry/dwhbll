@@ -13,6 +13,8 @@
 #include <liburing.h>
 
 namespace dwhbll::concurrency::coroutine {
+    class uring_sqe_awaitable;
+    class cancellable_base;
     struct uring_promise;
     class reactor;
 
@@ -38,7 +40,7 @@ namespace dwhbll::concurrency::coroutine {
          */
         struct user_data {
             job* parent = nullptr;
-            void* promise = nullptr;
+            cancellable_base* promise = nullptr;
             std::coroutine_handle<> handle;
         };
 
@@ -48,6 +50,7 @@ namespace dwhbll::concurrency::coroutine {
          */
         struct job {
             job* parent = nullptr;
+            bool cancelled = false;
             std::unordered_set<job*> children{};
             std::unordered_set<user_data*> completions{};
         };
@@ -102,9 +105,9 @@ namespace dwhbll::concurrency::coroutine {
 
         [[nodiscard]] bool empty() const;
 
-        void enqueue(std::coroutine_handle<> handle);
+        void enqueue(cancellable_base* cancellable, std::coroutine_handle<> handle);
 
-        void add_sleep_task(std::chrono::steady_clock::time_point resume, std::coroutine_handle<> h);
+        void add_sleep_task(std::chrono::steady_clock::time_point resume, cancellable_base* cancellable, std::coroutine_handle<> h);
 
         void run();
 
@@ -143,7 +146,7 @@ namespace dwhbll::concurrency::coroutine {
 
         void process_cqe(io_uring_cqe* cqe);
 
-        void enqueue_sqe_waiter(std::coroutine_handle<> handle);
+        void enqueue_sqe_waiter(uring_sqe_awaitable *awaitable, std::coroutine_handle<> handle);
 
         io_uring* get_uring_ptr();
     };

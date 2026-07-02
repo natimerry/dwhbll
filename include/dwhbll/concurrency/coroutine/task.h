@@ -2,12 +2,14 @@
 
 #include <coroutine>
 #include <expected>
+
+#include <dwhbll/concurrency/coroutine/cancellable_base.h>
 #include <dwhbll/console/debug.hpp>
 #include <dwhbll/exceptions/concurrency_exception.h>
 
 namespace dwhbll::concurrency::coroutine {
     namespace detail {
-        void reactor_enqueue(std::coroutine_handle<> h);
+        void reactor_enqueue(cancellable_base* cancellable, std::coroutine_handle<> h);
     }
 
     template <typename T = void>
@@ -63,20 +65,27 @@ namespace dwhbll::concurrency::coroutine {
             return *this;
         }
 
-        struct continuation_awaiter {
+        struct continuation_awaiter : public cancellable_base {
             handle_t h;
+
+            continuation_awaiter(handle_t h) : cancellable_base(), h(h) {}
 
             [[nodiscard]] bool await_ready() const noexcept {
                 return !h || h.done();
             }
 
-            auto await_suspend(std::coroutine_handle<> parent) const noexcept {
+            auto await_suspend(std::coroutine_handle<> parent) noexcept {
                 h.promise().continuation = parent;
 
-                detail::reactor_enqueue(h);
+                detail::reactor_enqueue(this, h);
             }
 
             T await_resume() {
+                if (is_cancelled()) {
+                    h.destroy();
+                    cancellable_base::await_resume();
+                }
+
                 if (!h.promise().value.has_value()) {
                     debug::panic("no value stored in promise");
                 }
@@ -99,15 +108,17 @@ namespace dwhbll::concurrency::coroutine {
             }
         };
 
-        struct finalize_awaiter {
+        struct finalize_awaiter : public cancellable_base {
             bool await_ready() noexcept {
                 return false;
             }
             void await_suspend(handle_t h) noexcept {
                 if (h.promise().continuation)
-                    detail::reactor_enqueue(h.promise().continuation);
+                    detail::reactor_enqueue(this, h.promise().continuation);
             }
-            void await_resume() noexcept {}
+            void await_resume() noexcept {
+                cancellable_base::await_resume();
+            }
         };
 
         auto operator co_await() {
@@ -199,20 +210,27 @@ namespace dwhbll::concurrency::coroutine {
             return *this;
         }
 
-        struct continuation_awaiter {
+        struct continuation_awaiter : public cancellable_base {
             handle_t h;
+
+            continuation_awaiter(handle_t h) : cancellable_base(), h(h) {}
 
             [[nodiscard]] bool await_ready() const noexcept {
                 return !h || h.done();
             }
 
-            auto await_suspend(std::coroutine_handle<> parent) const noexcept {
+            auto await_suspend(std::coroutine_handle<> parent) noexcept {
                 h.promise().continuation = parent;
 
-                detail::reactor_enqueue(h);
+                detail::reactor_enqueue(this, h);
             }
 
             void await_resume() {
+                if (is_cancelled()) {
+                    h.destroy();
+                    cancellable_base::await_resume();
+                }
+
                 if (h.promise().eptr.has_value()) {
                     std::exception_ptr eptr = h.promise().eptr.value();
 
@@ -227,7 +245,7 @@ namespace dwhbll::concurrency::coroutine {
             }
         };
 
-        struct finalize_awaiter {
+        struct finalize_awaiter : public cancellable_base {
             bool reactor_owned;
 
             bool await_ready() noexcept {
@@ -236,10 +254,12 @@ namespace dwhbll::concurrency::coroutine {
 
             void await_suspend(handle_t h) noexcept {
                 if (h.promise().continuation)
-                    detail::reactor_enqueue(h.promise().continuation);
+                    detail::reactor_enqueue(this, h.promise().continuation);
             }
 
-            void await_resume() noexcept {}
+            void await_resume() noexcept {
+                cancellable_base::await_resume();
+            }
         };
 
         auto operator co_await() {
