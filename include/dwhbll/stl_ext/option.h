@@ -14,6 +14,16 @@ namespace dwhbll::stl_ext {
     requires (!std::same_as<T, void> && !std::same_as<E, void>)
     class Result;
 
+    namespace __detail {
+        template<typename T>
+        struct is_option : std::false_type {};
+
+        template<typename T>
+        struct is_option<Option<T>> : std::true_type {
+            using TYPE = T;
+        };
+    }
+
     /**
      * @brief rust but in c++ I mean what?
      * @tparam T Value of Some variant
@@ -209,9 +219,11 @@ namespace dwhbll::stl_ext {
             return Option();
         }
 
-        Option or_(this auto&& self, const Option&& optb) {
+        template <typename O, typename OV = std::decay_t<O>>
+        requires (__detail::is_option<OV>::value && std::is_same_v<typename __detail::is_option<OV>::TYPE, T>)
+        Option or_(this auto&& self, const O&& optb) {
             if (self.type == Some)
-                return *self;
+                return self;
             return optb;
         }
 
