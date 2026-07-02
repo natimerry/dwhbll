@@ -3,8 +3,6 @@
 #include "dwhbll/console/Logging.h"
 #include <cerrno>
 #include <concepts>
-#include <cstdint>
-#include <cstring>
 #include <netinet/in.h>
 #include <string>
 #include <sys/poll.h>
@@ -12,28 +10,16 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <dwhbll/network/http/methods.h>
 
 namespace dwhbll::network::http_server {
-
-enum class Method {
-  GET,
-  HEAD,
-  POST,
-  PUT,
-  DELETE,
-  CONNECT,
-  OPTIONS,
-  TRACE,
-  PATCH
-};
-
 enum class Version {
   V_11,
   // TODO V2, V3, maybe V_10
 };
 
 struct Request {
-  Method method;
+  http::HTTP_METHOD method;
   std::string uri;
   Version version;
   std::unordered_map<std::string, std::string> fields;
@@ -78,17 +64,17 @@ struct string_hash {
 };
 
 static const std::unordered_map<std::string,
-                                dwhbll::network::http_server::Method,
+                                dwhbll::network::http::HTTP_METHOD,
                                 string_hash, std::equal_to<>>
-    method_map = {{"GET", dwhbll::network::http_server::Method::GET},
-                  {"HEAD", dwhbll::network::http_server::Method::HEAD},
-                  {"POST", dwhbll::network::http_server::Method::POST},
-                  {"PUT", dwhbll::network::http_server::Method::PUT},
-                  {"DELETE", dwhbll::network::http_server::Method::DELETE},
-                  {"CONNECT", dwhbll::network::http_server::Method::CONNECT},
-                  {"OPTIONS", dwhbll::network::http_server::Method::OPTIONS},
-                  {"TRACE", dwhbll::network::http_server::Method::TRACE},
-                  {"PATCH", dwhbll::network::http_server::Method::PATCH}};
+    method_map = {{"GET", dwhbll::network::http::HTTP_METHOD::GET},
+                  {"HEAD", dwhbll::network::http::HTTP_METHOD::HEAD},
+                  {"POST", dwhbll::network::http::HTTP_METHOD::POST},
+                  {"PUT", dwhbll::network::http::HTTP_METHOD::PUT},
+                  {"DELETE", dwhbll::network::http::HTTP_METHOD::DELETE},
+                  {"CONNECT", dwhbll::network::http::HTTP_METHOD::CONNECT},
+                  {"OPTIONS", dwhbll::network::http::HTTP_METHOD::OPTIONS},
+                  {"TRACE", dwhbll::network::http::HTTP_METHOD::TRACE},
+                  {"PATCH", dwhbll::network::http::HTTP_METHOD::PATCH}};
 
 class SocketBuilder {
   int fd = -1;
