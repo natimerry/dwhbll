@@ -11,6 +11,7 @@
 #include <dwhbll/concurrency/coroutine/detached_task.h>
 
 #include <liburing.h>
+#include <dwhbll/concurrency/coroutine/cancellation_exception.h>
 
 namespace dwhbll::concurrency::coroutine {
     class uring_sqe_awaitable;
@@ -42,6 +43,7 @@ namespace dwhbll::concurrency::coroutine {
             job* parent = nullptr;
             cancellable_base* promise = nullptr;
             std::coroutine_handle<> handle;
+            bool is_uring = false;
         };
 
         /**
@@ -94,7 +96,26 @@ namespace dwhbll::concurrency::coroutine {
 
         void job_lifetime_end(job *job);
 
+        struct cancellation_token {
+            std::uint64_t ref_count = 0;
+        };
+
+        std::unordered_set<cancellation_token*> cancellations_in_flight;
+
+        [[nodiscard]] task<> cancel_job(cancellation_token* token, job *job);
+
     public:
+        class reactor_job {
+            job* job_;
+
+            explicit reactor_job(job* j) : job_(j) {}
+
+            friend class reactor;
+
+        public:
+            void cancel() const;
+        };
+
         /**
          * @brief initializes a new reactor with an ioring buffer size of 128 entries
          * @param size 128 entries seems pretty reasonable by default
@@ -111,7 +132,7 @@ namespace dwhbll::concurrency::coroutine {
 
         void run();
 
-        void spawn(task<> future);
+        reactor_job spawn(task<> future);
 
         template <typename T>
         [[nodiscard]] std::future<T> spawn_with_future(task<T> task) {

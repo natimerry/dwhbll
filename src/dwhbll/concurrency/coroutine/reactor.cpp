@@ -4,6 +4,7 @@
 #include <liburing.h>
 
 #include <dwhbll/concurrency/coroutine/cancellable_base.h>
+#include <dwhbll/concurrency/coroutine/cancellation_exception.h>
 #include <dwhbll/concurrency/coroutine/detached_task.h>
 #include <dwhbll/concurrency/coroutine/uring_promise.h>
 #include <dwhbll/concurrency/coroutine/uring_sqe_awaitable.h>
@@ -132,6 +133,41 @@ namespace dwhbll::concurrency::coroutine {
         job_pool.offer(job);
     }
 
+    task<> reactor::cancel_job(cancellation_token* token, job *job) {
+        job->cancelled = true;
+
+        for (auto& child : job->children)
+            co_await cancel_job(token, child);
+
+        for (auto& completion : job->completions) {
+            completion->promise->cancel();
+
+            if (completion->is_uring) {
+                uring_promise promise;
+                co_await wait_for_sqe();
+                auto* sqe = get_sqe(promise);
+
+                io_uring_prep_cancel(sqe, completion, 0);
+
+                submit();
+
+                (void)co_await promise;
+            }
+        }
+    }
+
+    void reactor::reactor_job::cancel() const {
+        auto current_reactor = get_thread_reactor();
+        auto _ = stl_ext::store_temporary(current_reactor->current_job, nullptr);
+        auto* cancellation_job = current_reactor->job_lifetime_begin();
+        current_reactor->current_job = cancellation_job;
+
+        [job=job_, reactor=current_reactor]() mutable -> DetachedTask {
+            auto* token = new cancellation_token;
+            co_await reactor->cancel_job(token, job);
+        }();
+    }
+
     reactor::reactor(std::uint32_t size) : ring() {
         auto r = io_uring_queue_init(size, &ring, IORING_SETUP_SQPOLL);
         if (r < 0)
@@ -210,17 +246,19 @@ namespace dwhbll::concurrency::coroutine {
                 auto h = sqe_waiters.front();
                 sqe_waiters.pop_front();
                 resume_stall_check(h, h->handle);
-           }
+            }
         }
     }
 
-    void reactor::spawn(task<> future) {
+    reactor::reactor_job reactor::spawn(task<> future) {
         auto f = [fut = std::move(future)]() mutable -> DetachedTask {
             try {
                 co_await fut;
             } catch (const exceptions::rt_exception_base& e) {
                 exceptions::rt_exception_base::traceback_terminate_handler();
                 debug::panic("uncaught exception unwound through future");
+            } catch (const cancellation_exception& _) {
+                // eat cancellation exceptions.
             } catch (const std::runtime_error& e) {
                 exceptions::rt_exception_base::traceback_terminate_handler();
                 debug::panic("uncaught exception unwound through future.");
@@ -234,6 +272,8 @@ namespace dwhbll::concurrency::coroutine {
         auto* job = job_lifetime_begin();
         auto _ = stl_ext::store_temporary(current_job, job);
         f();
+
+        return reactor_job{job};
     }
 
     reactor * reactor::get_thread_reactor() {
@@ -250,6 +290,7 @@ namespace dwhbll::concurrency::coroutine {
 
         auto* data = user_data_lifetime_begin();
         data->promise = &h;
+        data->is_uring = true;
 
         io_uring_sqe_set_data(sqe, data);
 
@@ -265,7 +306,20 @@ namespace dwhbll::concurrency::coroutine {
     void reactor::process_cqe(io_uring_cqe *cqe) {
         inflight_completions--;
 
-        auto* job_info = static_cast<user_data *>(io_uring_cqe_get_data(cqe));
+        auto* data = io_uring_cqe_get_data(cqe);
+
+        if (cancellations_in_flight.contains(static_cast<cancellation_token *>(data))) {
+            auto* cancellation = static_cast<cancellation_token *>(data);
+
+            if (--cancellation->ref_count == 0) {
+                cancellations_in_flight.erase(cancellation);
+                delete cancellation;
+            }
+
+            return;
+        }
+
+        auto* job_info = static_cast<user_data *>(data);
 
         auto* promise = static_cast<uring_promise *>(job_info->promise);
 
