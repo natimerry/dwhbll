@@ -126,6 +126,8 @@ set(DWHBLL_SOURCES
     include/dwhbll/network/address.h
     include/dwhbll/network/buffered_socket.h
     include/dwhbll/network/dns/dns.h
+    include/dwhbll/network/http/methods.h
+    include/dwhbll/network/http/versions.h
     include/dwhbll/network/http.h
     include/dwhbll/network/http_server.hpp
     include/dwhbll/network/SocketManager.h
