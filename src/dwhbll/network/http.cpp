@@ -1,13 +1,14 @@
-#include "../../../include/dwhbll/network/http.h"
+#include <dwhbll/network/http.h>
 
 #include <iostream>
+
 #include <dwhbll/console/Logging.h>
 #include <dwhbll/exceptions/rt_exception_base.h>
 
 #define CRLF "\r\n"
 
 namespace dwhbll::network {
-    SocketManager http::socketManager{};
+    SocketManager HTTP::socketManager{};
 
     std::string http_response::status_line::to_string() const {
         return std::format("{}: {}, HTTP/{}.{}", status_code, status_info, http_major, http_minor);
@@ -30,11 +31,11 @@ namespace dwhbll::network {
         return result;
     }
 
-    http::http(in_addr addr, unsigned short port) : socket(socketManager.getIPv4TCPSocket(addr, port)) {}
+    HTTP::HTTP(in_addr addr, unsigned short port) : socket(socketManager.getIPv4TCPSocket(addr, port)) {}
 
-    http::http(memory::Pool<Socket>::ObjectWrapper &&socket) : socket(std::move(socket)) {}
+    HTTP::HTTP(memory::Pool<Socket>::ObjectWrapper &&socket) : socket(std::move(socket)) {}
 
-    std::optional<http_response> http::make_request(http_request req) {
+    std::optional<http_response> HTTP::make_request(http_request req) {
         write_request_line(req);
         write_request_headers(req.headers);
         if (req.body.empty()) {
@@ -69,22 +70,22 @@ namespace dwhbll::network {
         return std::nullopt;
     }
 
-    void http::write_request_line(const http_request &req) {
+    void HTTP::write_request_line(const http_request &req) {
         write_request_method(req.method);
         socket.outbound.write_u8(' ');
         write_request_abs_path(req.path);
         socket.outbound.write_string(" HTTP/1.0" CRLF);
     }
 
-    void http::write_request_method(http_request::Method method) {
+    void HTTP::write_request_method(http::HTTP_METHOD method) {
         switch (method) {
-            case http_request::Method::GET:
+            case http::HTTP_METHOD::GET:
                 socket.outbound.write_string("GET");
                 break;
-            case http_request::Method::POST:
+            case http::HTTP_METHOD::POST:
                 socket.outbound.write_string("POST");
                 break;
-            case http_request::Method::HEAD:
+            case http::HTTP_METHOD::HEAD:
                 socket.outbound.write_string("HEAD");
                 break;
             default:
@@ -92,24 +93,24 @@ namespace dwhbll::network {
         }
     }
 
-    void http::write_request_abs_path(const std::string &abs_path) {
+    void HTTP::write_request_abs_path(const std::string &abs_path) {
         socket.outbound.write_string(abs_path);
     }
 
-    void http::write_request_header(const std::string &key, const std::string &value) {
+    void HTTP::write_request_header(const std::string &key, const std::string &value) {
         socket.outbound.write_string(key);
         socket.outbound.write_string(":");
         socket.outbound.write_string(value);
         socket.outbound.write_string(CRLF);
     }
 
-    void http::write_request_headers(const std::unordered_map<std::string, std::string> &headers) {
+    void HTTP::write_request_headers(const std::unordered_map<std::string, std::string> &headers) {
         for (const auto& [key, value] : headers) {
             write_request_header(key, value);
         }
     }
 
-    void http::write_body(const std::span<sanify::u8>& body) {
+    void HTTP::write_body(const std::span<sanify::u8>& body) {
         write_request_header("Content-Length", std::to_string(body.size()));
 
         // CRLFCRLF
@@ -118,7 +119,7 @@ namespace dwhbll::network {
         socket.outbound.write_vector(body);
     }
 
-    void http::parse_status_line(http_response& resp) {
+    void HTTP::parse_status_line(http_response& resp) {
         socket.inbound.expect("HTTP/");
         resp.status.http_major = socket.inbound.parse_u64();
         socket.inbound.expect('.');
@@ -129,7 +130,7 @@ namespace dwhbll::network {
         resp.status.status_info = std::move(socket.inbound.consume_until_eol(files::EOLType::crlf));
     }
 
-    void http::parse_headers(http_response &resp) {
+    void HTTP::parse_headers(http_response &resp) {
         // not CRLF
         // TODO: this might blow up wont it :xdd:
         while (socket.inbound.peek_u8() != '\r' && socket.inbound.peek_u8(1) != '\n') {
@@ -148,7 +149,7 @@ namespace dwhbll::network {
         }
     }
 
-    void http::parse_body(http_response &resp) {
+    void HTTP::parse_body(http_response &resp) {
         while (true) {
             socket.inbound.refill_buffer();
             if (socket.inbound.empty())

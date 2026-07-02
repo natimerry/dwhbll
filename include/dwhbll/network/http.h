@@ -2,14 +2,11 @@
 
 #include <dwhbll/network/buffered_socket.h>
 #include <dwhbll/network/SocketManager.h>
+#include <dwhbll/network/http/methods.h>
 
 namespace dwhbll::network {
     struct http_request {
-        enum Method {
-            GET,
-            HEAD,
-            POST,
-        } method;
+        http::HTTP_METHOD method;
 
         std::string path;
 
@@ -34,16 +31,16 @@ namespace dwhbll::network {
         [[nodiscard]] std::string to_string() const;
     };
 
-    class http {
+    class HTTP {
         buffered_socket socket;
 
         /// Base socket manager, can use a different one if necessary (functionality todo)
         static SocketManager socketManager;
 
     public:
-        http(in_addr addr, unsigned short port = 80);
+        HTTP(in_addr addr, unsigned short port = 80);
 
-        http(memory::Pool<Socket>::ObjectWrapper&& socket);
+        HTTP(memory::Pool<Socket>::ObjectWrapper&& socket);
 
         std::optional<http_response> make_request(http_request req); // todo
 
@@ -54,7 +51,7 @@ namespace dwhbll::network {
 
         void write_request_line(const http_request& req);
 
-        void write_request_method(http_request::Method method);
+        void write_request_method(http::HTTP_METHOD method);
 
         void write_request_abs_path(const std::string& abs_path);
 
