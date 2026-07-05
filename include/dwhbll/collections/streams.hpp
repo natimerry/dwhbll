@@ -13,6 +13,7 @@
 #include <span>
 #include <algorithm>
 #include <format>
+#include <version>
 
 namespace dwhbll::collections::stream {
 
@@ -139,7 +140,11 @@ public:
           file_(path, std::ios::binary),
           pos_(0) {
         if (!file_.is_open()) {
+#if __cpp_lib_format_path >= 202506L
+            throw std::ios_base::failure(std::format("Failed to open {}", path.display_string()));
+#else
             throw std::ios_base::failure(std::format("Failed to open {}", path.string()));
+#endif
         }
     }
 

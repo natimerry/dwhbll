@@ -71,7 +71,11 @@ const std::string & task_deferral::get_name() const {
         if (entry.source_file().size() > 0) {
             const auto sourcePath = std::filesystem::path(entry.source_file());
             const auto relativePath = sourcePath.lexically_relative(std::filesystem::current_path());
+#if __cpp_lib_format_path >= 202506L
+            const auto filename = relativePath.display_string().starts_with("../..") ? sourcePath : relativePath;
+#else
             const auto filename = relativePath.string().starts_with("../..") ? sourcePath : relativePath;
+#endif
             sourcePosition = std::format(
                     "{} at {}:{}",
                     function.data(), filename.c_str(), entry.source_line());

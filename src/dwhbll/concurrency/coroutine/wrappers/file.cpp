@@ -1,6 +1,7 @@
 #include <dwhbll/concurrency/coroutine/wrappers/file.h>
 
 #include <fcntl.h>
+#include <version>
 #include <unistd.h>
 #include <sys/poll.h>
 #include <dwhbll/concurrency/coroutine/wrappers/syscall_wrappers.h>
@@ -75,7 +76,13 @@ namespace dwhbll::concurrency::coroutine::wrappers {
             debug::panic("fd open failed!");
     }
 
-    file::file(const std::filesystem::path &path, std::ios::openmode mode) : file(path.string(), mode) {}
+    file::file(const std::filesystem::path &path, std::ios::openmode mode)
+#if __cpp_lib_format_path >= 202506L
+        : file(path.display_string(), mode) {}
+#else
+        : file(path.string(), mode) {}
+#endif
+
 
     file::~file() {
         if (fd > 0) {
@@ -91,7 +98,11 @@ namespace dwhbll::concurrency::coroutine::wrappers {
     }
 
     task<file> file::open(const std::filesystem::path &path, std::ios::openmode mode) {
+#if __cpp_lib_format_path >= 202506L
+        co_return co_await open(path.display_string(), mode);
+#else
         co_return co_await open(path.string(), mode);
+#endif
     }
 
     task<> file::close() {
