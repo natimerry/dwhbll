@@ -1,16 +1,19 @@
 #pragma once
 
-#include "dwhbll/console/Logging.h"
 #include <cerrno>
-#include <concepts>
 #include <netinet/in.h>
-#include <string>
 #include <sys/poll.h>
+#include <unistd.h>
 #include <sys/socket.h>
+
+#include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <concepts>
+
 #include <dwhbll/network/http/methods.h>
+#include <dwhbll/console/Logging.h>
 
 namespace dwhbll::network::http_server {
 enum class Version {
