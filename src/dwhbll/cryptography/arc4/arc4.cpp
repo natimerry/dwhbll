@@ -3,6 +3,11 @@
 #include <cstring>
 #include <stdexcept>
 
+#ifdef _WIN32
+#include <windows.h>
+#define explicit_bzero SecureZeroMemory
+#endif
+
 namespace dwhbll::cryptography::arc4 {
     std::uint8_t arc4::keystream_next() {
         ++keygen_i;

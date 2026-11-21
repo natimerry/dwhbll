@@ -43,10 +43,13 @@ namespace dwhbll::exceptions {
     }();
 
     void rt_exception_base::populate_trace() {
+#ifdef __cpp_lib_stacktrace
         trace = std::stacktrace::current();
+#endif
     }
 
     std::string rt_exception_base::get_prettyprint_trace() const {
+#ifdef __cpp_lib_stacktrace
         std::stringstream stream;
         stream << "Traceback (most recent call first):" << "\n";
 
@@ -80,6 +83,9 @@ namespace dwhbll::exceptions {
         }
 
         return stream.str();
+#else
+        return {};
+#endif
     }
 
     void rt_exception_base::trace_to_stderr() const {

@@ -11,7 +11,7 @@ namespace dwhbll::memory {
 	 * @tparam T the type of the object in the pool
 	 * @tparam BlockSize Number of objects per slab
 	 */
-	template <typename T, size_t BlockSize = std::max(1024/sizeof(T), 1ul)>
+	template <typename T, size_t BlockSize = std::max(1024/sizeof(T), std::size_t{1})>
 	class Pool {
 // #pragma pack(push, 1)
 		struct Obj {

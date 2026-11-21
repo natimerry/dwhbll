@@ -199,14 +199,13 @@ constexpr std::string dbg(T const& val, int depth = 0, int step = 4, bool first_
 
 namespace dwhbll::meta {
 template <typename T>
-constexpr std::string dbg(T const& val, int depth = 0, int step = 4, bool first_indent = true) {
-    return std::format<T>("{}", val);
+constexpr std::string dbg(T const& val, int = 0, int = 4, bool = true) {
+    return std::format("{}", val);
 }
 }
 
 #endif
 
-#define 🦀 dbg
 // formatters for stl_ext
 #include <dwhbll/debug/formatters/option.h>
 #include <dwhbll/debug/formatters/result.h>

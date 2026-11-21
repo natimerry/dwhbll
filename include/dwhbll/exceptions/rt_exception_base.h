@@ -1,11 +1,14 @@
 #pragma once
 
+#include <format>
 #include <stacktrace>
 #include <stdexcept>
 
 namespace dwhbll::exceptions {
     class rt_exception_base : public std::runtime_error {
+#ifdef __cpp_lib_stacktrace
         std::stacktrace trace;
+#endif
 
         void populate_trace();
 
@@ -14,9 +17,7 @@ namespace dwhbll::exceptions {
             populate_trace();
         }
 
-        rt_exception_base(const rt_exception_base &other) : std::runtime_error(other) {
-            trace = other.trace;
-        }
+        rt_exception_base(const rt_exception_base &other) = default;
 
         rt_exception_base(const std::string& what_arg) : std::runtime_error(what_arg) {
             populate_trace();

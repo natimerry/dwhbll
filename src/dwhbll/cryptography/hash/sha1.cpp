@@ -3,6 +3,11 @@
 #include <cstring>
 #include <dwhbll/debug/debug.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#define explicit_bzero SecureZeroMemory
+#endif
+
 namespace dwhbll::cryptography {
     void SHA1::digest_chunk() {
         for (std::uint8_t i = 0; i < 64; i += 4)

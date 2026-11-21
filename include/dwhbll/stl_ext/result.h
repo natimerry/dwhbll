@@ -114,7 +114,7 @@ namespace dwhbll::stl_ext {
             E ERR_VALUE;
 
             constexpr ~DATA() {}
-        } data;
+        } data{};
         state type = state::invalid;
 
         constexpr void __destroy_storage() {

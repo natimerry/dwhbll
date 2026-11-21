@@ -31,6 +31,7 @@ namespace dwhbll::debug {
 
     std::cerr << "\n\e[1;91m============ [" << header_text << "] ============\n";
     std::cerr << msg << "\n\n";
+#ifdef __cpp_lib_stacktrace
     std::cerr << "Traceback (most recent call first):" << "\n";
 
     std::stacktrace trace = std::stacktrace::current();
@@ -63,6 +64,7 @@ namespace dwhbll::debug {
                 reinterpret_cast<std::uintptr_t>(entry.native_handle()), sourcePosition);
         std::cerr << (info);
     }
+#endif
 
 #ifdef NDEBUG
     std::cerr << "Context Stack unavailable in release mode.\n";

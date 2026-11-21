@@ -1,12 +1,19 @@
 #include <dwhbll/console/logging.h>
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <sstream>
 #include <unordered_map>
 
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#undef ERROR
+#else
 #include <unistd.h>
+#endif
 
 #include <dwhbll/sanify/types.h>
 #include <dwhbll/stl_ext/option.h>
@@ -53,7 +60,15 @@ namespace dwhbll::console {
         bool check_stdout = force || detail::stdout_is_tty.is_none();
         bool check_stderr = force || detail::stderr_is_tty.is_none();
 
-        auto check = [](stl_ext::Option<bool> &res, int fd) {
+        auto check = [](stl_ext::Option<bool> &res, std::FILE* stream) {
+#ifdef _WIN32
+            const auto fd = _fileno(stream);
+            DWORD mode{};
+            res = stl_ext::Some(fd >= 0 &&
+                GetConsoleMode(reinterpret_cast<HANDLE>(_get_osfhandle(fd)), &mode) &&
+                (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0);
+#else
+            const auto fd = fileno(stream);
             auto r = isatty(fd);
             if (r == 1)
                 res = stl_ext::Some(true);
@@ -66,13 +81,14 @@ namespace dwhbll::console {
                     fd, errno, strerror(errno)) << std::endl;
                 res = stl_ext::Some(false);
             }
+#endif
         };
 
         if (check_stdout)
-            check(detail::stdout_is_tty, STDOUT_FILENO);
+            check(detail::stdout_is_tty, stdout);
 
         if (check_stderr)
-            check(detail::stderr_is_tty, STDERR_FILENO);
+            check(detail::stderr_is_tty, stderr);
     }
 
     void setLevel(Level level) {
