@@ -52,7 +52,7 @@ struct std::formatter<T, char> {
             if constexpr (requires { active.tuple; })
             {
                 out = std::apply([&](const auto&... fields) {
-                     ((out = std::format_to(out, "{}{}",std::exchange(x, false) ? "(" : ", ",dwhbll::meta::dbg(fields, 0, 5, false))), ...);
+                     ((out = std::format_to(out, "{}{}",std::exchange(x, false) ? "(" : ", ",dwhbll::meta::dbg(fields, false))), ...);
                      return out;
                  }, active.tuple);
             }
